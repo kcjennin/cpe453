@@ -1,0 +1,4 @@
+Kyle Jennings (kcjennin@calpoly.edu)
+
+The `clean` target in the Makefile also removes the generated libraries, not
+sure if that's what you wanted but I assume that it's okay.

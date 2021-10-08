@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "schedulers.h": "c",
+        "lwp.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "Enabled"
+}

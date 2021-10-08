@@ -91,7 +91,7 @@ extern thread tid2thread(tid_t tid);
 #define MKTERMSTAT(a,b)   ( (a)<<TERMOFFSET | ((b) & ((1<<TERMOFFSET)-1)) )
 #define LWP_TERM          1
 #define LWP_LIVE          0
-#define LWPTERMINATED(s)  ( ((s)&LWP_TERM) == LWP_TERM )
+#define LWPTERMINATED(s)  ( ((s>>TERMOFFSET)&LWP_TERM) == LWP_TERM )
 #define LWPTERMSTAT(s)    ( (s) & ((1<<TERMOFFSET)-1) )
 
 /* prototypes for asm functions */
