@@ -1,0 +1,10 @@
+lwp_set_scheduler
+lwp_create
+lwp_start
+lwp_wait
+lwp_exit 
+lwp_yield
+
+extern tid_t lwp_gettid(void);
+extern scheduler lwp_get_scheduler(void);
+extern thread tid2thread(tid_t tid);

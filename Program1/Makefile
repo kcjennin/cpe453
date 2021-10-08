@@ -26,6 +26,9 @@ liblwp.so: $(OBJS)
 liblwp.a: $(OBJS)
 	ar r $@ $^
 
+nums: liblwp.a liblwp.so AlwaysZero.o numbersmain.o
+	$(CC) $(CFLAGS) -o nums numbersmain.o AlwaysZero.o -L. -llwp
+
 .PHONY: clean
 
 clean:
