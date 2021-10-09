@@ -1,7 +1,13 @@
 {
     "files.associations": {
         "schedulers.h": "c",
-        "lwp.h": "c"
+        "lwp.h": "c",
+        "vector": "c",
+        "memory": "c",
+        "optional": "c",
+        "string_view": "c",
+        "string": "c",
+        "system_error": "c"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

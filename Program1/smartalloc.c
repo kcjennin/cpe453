@@ -37,7 +37,7 @@
 #include <pthread.h>
 
 #define PATTERN 0xA
-#define MARGIN 4
+#define MARGIN 16
 #define HASH_SIZE	113
 #define smartalloc_hash(x) ( ((unsigned long)(x)) % HASH_SIZE )
 
