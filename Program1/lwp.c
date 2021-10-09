@@ -243,6 +243,8 @@ void lwp_yield_helper(rfile *old, rfile *new)
  */
 void lwp_yield(void)
 {
+    int status;
+    
     /* save the old thread and get the next thread */
     thread prev_thread = ActiveThread;
     ActiveThread = ActiveScheduler->next();
@@ -255,8 +257,9 @@ void lwp_yield(void)
     {
         if(prev_thread->stack)
             munmap(prev_thread->stack, prev_thread->stacksize);
+        status = prev_thread->status;
         free_16(prev_thread);
-        exit(prev_thread->status);
+        exit(status);
     }
 }
 
