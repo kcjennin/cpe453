@@ -7,8 +7,8 @@ static int counter = 0;
 
 int main()
 {
-
-    for(int i=1; i<6; i++)
+    int i;
+    for(i=1; i<6; i++)
     {
         if(lwp_create((lwpfun) tmain, (void *)i, 0) == NO_THREAD)
         {
@@ -19,14 +19,14 @@ int main()
     printf("Stacksize of thread %d: %lx\n", 3, (unsigned long) tid2thread((tid_t) 3));
     lwp_start();
     
-    for(int i=1; i<6; i++)
+    for(i=1; i<6; i++)
     {
         int st, tid;
         
         tid = lwp_wait(&st);
         printf("Thread %d exited with status %d\n", tid, st);
     }
-    lwp_exit(1);
+    lwp_exit(0);
 }
 
 int tmain(int arg)
@@ -34,5 +34,5 @@ int tmain(int arg)
     printf("tid %ld:\n\tcounter %d\n", lwp_gettid(), counter++);
     lwp_yield();
     printf("tid %ld:\n\tcounter %d\n", lwp_gettid(), counter++);
-    lwp_exit(1);
+    lwp_exit(0);
 }

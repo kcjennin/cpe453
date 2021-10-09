@@ -7,9 +7,9 @@ LDFLAGS = -L. -llwp
 OBJS = smartalloc.o lwp.o magic64.o
 DEPS = fp.h lwp.h smartalloc.h
 
-TARGETS = liblwp.a
+TARGET = liblwp.a
 
-all: $(TARGETS)
+all: $(TARGET)
 
 
 # ASM files
@@ -20,17 +20,23 @@ all: $(TARGETS)
 %.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-liblwp.a: $(OBJS)
+$(TARGET): $(OBJS)
 	ar r $@ $^
 	ranlib $@
 
 nums: liblwp.a
-	gcc -o nums numbersmain.c AlwaysZero.c liblwp.a -I.
+	gcc -o nums numbersmain.c AlwaysZero.c liblwp.a -I. -g
 
 rsnakes: liblwp.a
-	gcc -o rsnakes randomsnakes.c liblwp.a libsnakes.a -I. -lncurses -L. -lsnakes
+	gcc -o rsnakes randomsnakes.c liblwp.a libsnakes.a -I. -lncurses -g
+
+hsnakes: liblwp.a
+	gcc -o hsnakes hungrysnakes.c liblwp.a libsnakes.a -I. -lncurses -g
+
+testing: liblwp.a
+	gcc -o testing testing.c liblwp.a -I. -g
 
 .PHONY: clean
 
 clean:
-	rm -f *.o $(TARGETS) nums 2> /dev/null
+	rm -f *.o $(TARGET) nums rsnakes hsnakes testing 2> /dev/null

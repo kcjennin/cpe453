@@ -323,9 +323,8 @@ tid_t lwp_wait(int *status)
     /* save the id */
     tid = zombie->tid;
 
-    /* if it had a status, save it */
-    if(zombie->status)
-        *status = zombie->status;
+    /* save the status */
+    *status = zombie->status;
 
     /* deallocate it */
     if(zombie->stack)
