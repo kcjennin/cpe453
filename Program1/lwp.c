@@ -134,7 +134,10 @@ tid_t lwp_create(lwpfun f, void *arg, size_t len)
         new_thread->lib_one = lib_tlist;
         lib_tlist = new_thread;
     }
-    
+
+    /* set the status to live */
+    new_thread->status = MKTERMSTAT(LWP_LIVE, 0);
+
     return new_thread->tid;
 }
 
@@ -152,7 +155,7 @@ void lwp_exit(int status)
 
     /* Remove the current process from the scheduler and save the status */
     ActiveScheduler->remove(ActiveThread);
-    ActiveThread->status = status;
+    ActiveThread->status = MKTERMSTAT(LWP_TERM,status);
 
     /* If there are zombies already, add the thread to the beginning of the
        list */
@@ -257,7 +260,7 @@ void lwp_yield(void)
     {
         if(prev_thread->stack)
             munmap(prev_thread->stack, prev_thread->stacksize);
-        status = prev_thread->status;
+        status = MKTERMSTAT(LWP_TERM, prev_thread->status);
         free_16(prev_thread);
         exit(status);
     }
@@ -327,7 +330,8 @@ tid_t lwp_wait(int *status)
     tid = zombie->tid;
 
     /* save the status */
-    *status = zombie->status;
+    if(status)
+        *status = MKTERMSTAT(LWP_TERM, zombie->status);
 
     /* deallocate it */
     if(zombie->stack)
