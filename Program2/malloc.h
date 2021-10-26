@@ -1,26 +1,23 @@
-#ifndef _MY_MALLOC_H
-#define _MY_MALLOC_H
+#ifndef _MY_MALLOC_H_
+#define _MY_MALLOC_H_
 #include <stddef.h>
+
+#define HEAP_CHUNK (2 << 16)
 
 #define malloc(x)       my_malloc((x))
 #define calloc(x, y)    my_calloc((x), (y))
 #define realloc(x, y)   my_realloc((x), (y))
 #define free(x)         my_free((x))
 
-typedef struct __attribute__ ((aligned(16))) __attribute__ ((__packed__)) header_h
-{
-    struct header_h *next;
-    unsigned char used;
-    unsigned int size;
-    unsigned char padding[7];
-} Header_h; /* size = 16 bytes */
+#define ALIGNMENT 16
+#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~(ALIGNMENT-1))
 
-typedef struct __attribute__ ((aligned(16))) __attribute__ ((__packed__)) heap
+typedef struct __attribute__((packed)) header
 {
-    Header_h *end;
-    unsigned char padding[8];
-    Header_h heap;
-} Heap; /* size = 32 bytes */
+    size_t size : 8*sizeof(size_t) - 1;
+    unsigned char used : 1;
+    struct header *free_next;
+} Header;
 
 void *my_malloc(size_t size);
 void *my_calloc(size_t nmemb, size_t size);

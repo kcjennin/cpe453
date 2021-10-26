@@ -1,238 +1,304 @@
 #include <unistd.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
 #include "malloc.h"
 
-#define CHUNK (2 << 16)
-#define true 1
-#define false 0
-#define MINCHUNK sizeof(Header_h) + 16
 #define STR_SIZE 128
 
-static Heap *heap_struct = NULL;
-static char str_hold[STR_SIZE];
+void *my_malloc(size_t size);
+void *my_calloc(size_t nmemb, size_t size);
+void *my_realloc(void *ptr, size_t size);
+void my_free(void *ptr);
 
-enum err { HEAP_FULL, BRK_ERR, HEAP_START, FREE, STAT };
+Header *get_heap_start();
+Header *next_header(Header *prev);
+Header *get_heap_end();
 
-void my_fprintf(enum err type, FILE *file)
+static Header *free_blocks = NULL;
+static Header *heap = NULL;
+
+enum print_flags { MALLOC, CALLOC, REALLOC, FREE } flags;
+
+void print_stat(int s, void *ptr, size_t size1, size_t size2)
 {
-    memset(str_hold, 0, STR_SIZE);
-    switch(type)
+    char str[STR_SIZE];
+    memset(str, 0, STR_SIZE);
+
+    switch(s)
     {
-        case HEAP_FULL :
-            snprintf(str_hold, 12, "Heap full.\n");
+        case MALLOC :
+            snprintf(str, STR_SIZE, "MALLOC: malloc(%ld)\t=>\t(ptr=%p, size=%ld)\n",
+                size1, ptr, size1);
             break;
-        case BRK_ERR :
-            snprintf(str_hold, 33, "Brk could not reduce heap size.\n");
+        case CALLOC :
+            snprintf(str, STR_SIZE, "MALLOC: calloc(%ld,%ld)\t=>\t(ptr=%p, size=%ld)\n",
+                size1, size2, ptr, size1*size2);
             break;
-        case HEAP_START :
-            snprintf(str_hold, 28, "Could not initialize heap.\n");
+        case REALLOC :
+            snprintf(str, STR_SIZE, "MALLOC: realloc(%p,%ld)\t=>\t(ptr=%p, size=%ld)\n",
+                ptr, size1, ptr, size1);
             break;
         case FREE :
-            snprintf(str_hold, 15, "Invalid free.\n");
-            break;
-        case STAT :
-            snprintf(str_hold, 35, "You are using the malloc library!\n");
+            snprintf(str, STR_SIZE, "MALLOC: free(%p)\n", ptr);
             break;
         default :
-            snprintf(str_hold, 24, "Unknown error occured.\n");
             break;
     }
-    fputs(str_hold, file);
+    fputs(str, stderr);
 }
 
-void init_heap()
+Header *get_heap_start()
 {
-    if( (heap_struct = sbrk(sizeof(Heap) + CHUNK)) < 0)
+    if(!heap)
     {
-        my_fprintf(HEAP_FULL, stderr);
-        return;
+        if( !(heap = sbrk(2*sizeof(Header) + HEAP_CHUNK)))
+            return NULL;
+        heap->size = 0;
+        heap->used = 1;
+        heap->free_next = &heap[1];
+
+        free_blocks = heap->free_next;
+        free_blocks->size = HEAP_CHUNK;
+        free_blocks->used = 0;
+        free_blocks->free_next = next_header(free_blocks);
     }
-    heap_struct->end = (Header_h *) sbrk(0);
-
-    heap_struct->heap.next = NULL;
-    heap_struct->heap.size = CHUNK;
-    heap_struct->heap.used = false;
+    return heap;
 }
 
-void init_header(Header_h *head, Header_h *next, unsigned char used, unsigned int size)
+Header *get_heap_end()
 {
-    head->next = next;
-    head->used = used;
-    head->size = size;
+    return sbrk(0);
 }
 
-void reduce_heap()
+Header *next_header(Header *prev)
 {
-    Header_h *head, *temp;
-
-    for(head = &heap_struct->heap; head->next; head = head->next);
-
-    if(head->size >= 2 * CHUNK - sizeof(Header_h))
-    {
-        temp = (Header_h *)(((unsigned long) head) + CHUNK - sizeof(Header_h));
-        if(!brk((void *)temp))
-        {
-            my_fprintf(BRK_ERR, stderr);
-            return;
-        }
-        heap_struct->end = temp;
-        head->size = CHUNK + sizeof(Header_h);
-    }
+    return (Header *) (((char *)(void *)prev) + prev->size + sizeof(Header));
 }
 
-void *find_open_block(size_t size)
+Header *find_open(size_t size)
 {
-    Header_h dummy;
-    Header_h *head, *new_chunk;
+    Header *next, *head = free_blocks;
 
-    if(size % 16)
-        size += 16 - (size % 16);
-    dummy.next = &heap_struct->heap;
-    for(head = &dummy; head->next && (head->next->size <= size || head->next->used); head = head->next);
-
-    if(head->next)
+    if(!free_blocks)
     {
-        head = head->next;
-        head->used = true;
-        if(!(head->size - size < MINCHUNK))
+        if(!get_heap_start())
         {
-            new_chunk = (Header_h *)(((unsigned long) &head[1]) + size);
-            init_header(new_chunk, head->next, false, head->size - size);
-            head->size = size;
-            head->next = new_chunk;
-        }
-        return (void *)(&head[1]);
-    }
-    else
-    {
-        if(sbrk(CHUNK) < 0)
-        {
-            my_fprintf(HEAP_FULL, stderr);
-            reduce_heap();
+            errno = ENOMEM;
             return NULL;
         }
-
-        /* if the last chunk is unused, give it the extra space */
-        if(!head->used)
-            head->size += CHUNK;
-        /* otherwise add a new header */
-        else
-        {
-            head->next = heap_struct->end;
-            init_header(heap_struct->end, NULL, false, CHUNK - sizeof(Header_h));
-        }
-        heap_struct->end = sbrk(0);
-        return find_open_block(size);
     }
+
+    while(head < get_heap_end())
+    {
+        /* if the block is unused */
+        if(!head->used)
+        {
+            /* if it fits, return it */
+            if(head->size >= size)
+                return head;
+
+            /* check to see if we can combine this block with the next */
+            next = next_header(head);
+            if(next < get_heap_end() && !next->used)
+            {
+                head->size += next->size + sizeof(Header);
+                head->free_next = head->free_next->free_next;
+                continue;
+            }
+        }
+        /* move to the next block */
+        head = next_header(head);
+    }
+    /* we didn't find a spot */
+    return NULL;
 }
 
 void *my_malloc(size_t size)
 {
-    if(!heap_struct)
-        init_heap();
-    if(!size)
-        return NULL;
-    return find_open_block(size);
+    size_t block_size, new_size;
+    Header *head, *new_head;
+
+    block_size = ALIGN(size);
+    head = find_open(block_size);
+
+    while(1)
+    {
+        new_size = head->size - block_size - sizeof(Header);
+
+        /* if we found a spot and we need to split */
+        if(head && new_size > 0)
+        {
+            new_head = next_header(head);
+            new_head->used = 0;
+            new_head->size = new_size;
+            break;
+        }
+        else if (!head)
+        {
+            if(errno == ENOMEM)
+                return NULL;
+            /* didn't find a spot */
+            if( (new_head = sbrk(HEAP_CHUNK + sizeof(Header))) < 0 )
+            {
+                errno = ENOMEM;
+                return NULL;
+            }
+            new_head->used = 0;
+            new_head->size = HEAP_CHUNK;
+            new_head->free_next = next_header(new_head);
+            
+            head = find_open(block_size);
+        }
+    }
+    head->used = 1;
+    head->size = block_size;
+
+    print_stat(MALLOC, &head[1], size, 0);
+    return &head[1];
 }
 
 void *my_calloc(size_t nmemb, size_t size)
 {
-    if(!heap_struct)
-        init_heap();
-    void *ptr;
     size_t total;
+    void *ptr;
 
     total = nmemb * size;
-
-    ptr = find_open_block(total);
+    ptr = my_malloc(total);
     memset(ptr, 0, total);
 
+    print_stat(CALLOC, ptr, nmemb, size);
     return ptr;
-}
-
-void *try_expand_chunk(Header_h *head, size_t size)
-{
-    Header_h *new_chunk;
-
-    if(size % 16)
-        size += 16 - (size % 16);
-    if(head->next)
-    {
-        if(!head->next->used && head->size + head->next->size + sizeof(Header_h) >= size)
-        {
-            head->size = head->size + head->next->size + sizeof(Header_h);
-
-            if(!(head->size - size < MINCHUNK))
-            {
-                new_chunk = (Header_h *)(((unsigned long) &head[1]) + size);
-                init_header(new_chunk, head->next, false, head->size - size);
-                head->size = size;
-                head->next = new_chunk;
-            }
-            return &head[1];
-        }
-        else if(!head->next->used)
-        {
-            head->size += head->next->size + sizeof(Header_h);
-            head->next = head->next->next;
-            head->used = false;
-        }
-    }
-    return NULL;
 }
 
 void *my_realloc(void *ptr, size_t size)
 {
-    if(!heap_struct)
-        init_heap();
-    Header_h *head;
-    void *ptr2;
+    Header *head, *next, *prev_free, dummy, *new_block;
+    void *ret_ptr;
+    size_t block_size, new_size;
+    int size_diff;
 
-    if(!size)
+    if(!ptr && !size)
+        return NULL;
+    else if(!ptr && size)
+        return my_malloc(size);
+    else if(ptr && !size)
+    {
         my_free(ptr);
-    else if(!ptr)
-        my_malloc(size);
+        return NULL;
+    }
 
-    head = (Header_h *)(((unsigned long) ptr) - sizeof(Header_h));
-    if( !(ptr2 = try_expand_chunk(head, size)) )
-        return find_open_block(size);
-    return ptr2;
+    block_size = ALIGN(size);
+
+    /* check if there is space to expand */
+    head = (Header *)ptr - 1;
+    next = next_header(head);
+
+    /* find the free that is closest to head */
+    dummy.free_next = free_blocks;
+    for(prev_free = &dummy; prev_free->free_next < head; prev_free = prev_free->free_next);
+
+    size_diff = head->size - block_size - sizeof(Header);
+
+    /* we need to split the block */
+    if(size_diff > 0)
+    {
+        head->size = block_size;
+        new_block = next_header(head);
+        new_block->free_next = prev_free->free_next;
+        new_block->size = size_diff;
+        new_block->used = 0;
+        prev_free->free_next = new_block;
+
+        print_stat(REALLOC, ptr, size, 0);
+        return ptr;
+    }
+    /* same size, dont do anything */
+    else if(size_diff == 0)
+    {
+        print_stat(REALLOC, ptr, size, 0);
+        return ptr;
+    }
+    /* we need a bigger block */
+    else
+    {
+        /* we might be able to use the next block */
+        if(!next->used)
+        {
+            new_size = head->size + next->size + sizeof(Header);
+
+            /* if there is enough size */
+            if(block_size <= new_size)
+            {
+                /* skip the next block in the free list and combine with head */
+                prev_free->free_next = next->free_next;
+
+                head->size += next->size + sizeof(Header);
+            }
+        }
+        else
+        {
+            ret_ptr = my_malloc(block_size);
+            memcpy(ret_ptr, &head[1], head->size);
+            head->used = 0;
+            head->free_next = prev_free->free_next;
+            prev_free->free_next = head;
+        }
+        print_stat(REALLOC, ret_ptr, size, 0);
+        return ret_ptr;
+    }
 }
 
 void my_free(void *ptr)
 {
-    if(!heap_struct)
+    Header *next, *head, *last_free = NULL;
+
+    if(!ptr)
+        return;
+
+    print_stat(FREE, ptr, 0, 0);
+    if( !(head = get_heap_start()) )
     {
-        my_fprintf(FREE, stderr);
+        errno = ENOMEM;
         return;
     }
-    Header_h *head, *comp;
-    unsigned char found;
 
-    if(ptr)
+    /* find the block */
+    while(head < get_heap_end())
     {
-        head = (Header_h *)(((unsigned long) ptr) - sizeof(Header_h));
+        next = next_header(head);
 
-        found = false;
-        for(comp = &heap_struct->heap; comp->next; comp = comp->next)
-        {
-            if(head == comp && comp->used)
-            {
-                found = true;
-                break;
-            }
-        }
-        if(found)
-        {
-            head->used = false;
-            if(head->next && !head->next->used)
-            {
-                head->size += head->next->size + sizeof(Header_h);
-                head->next = head->next->next;
-            }
-        }
+        if(!head->used)
+            last_free = head;
         else
-            my_fprintf(FREE, stderr);
+        {
+            /* found it */
+            if(ptr >= (void *)head && ptr < (void *)next)
+            {
+                head->used = 0;
+
+                /* insert into free list */
+                /* if this is the first occuring free */
+                if(!last_free)
+                {
+                    head->free_next = free_blocks;
+                    free_blocks = head;
+                }
+                /* not the first */
+                else
+                {
+                    head->free_next = last_free->free_next;
+                    last_free->free_next = head;
+                }
+            }
+        }
+        head = next;
+    }
+
+    /* combine with next free block if possible */
+    if(head != get_heap_end() && !next->used)
+    {
+        head->free_next = next->free_next;
+        head->size += next->size + sizeof(Header);
     }
 }

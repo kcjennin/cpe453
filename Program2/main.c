@@ -1,8 +1,12 @@
+#include <string.h>
 #include "malloc.h"
 #include <stdio.h>
 
-int main()
+int main(int argc, char *argv[])
 {
-    /* Need to debug lots of allocs */
+    char *s;
+    s = strdup("Tryme"); /* should call malloc() implicitly */
+    puts(s);
+    free(s);
     return 0;
 }
