@@ -5,7 +5,8 @@
 int main(int argc, char *argv[])
 {
     char *s;
-    s = strdup("Tryme"); /* should call malloc() implicitly */
+
+    s = strdup("Tryme");
     puts(s);
     free(s);
     return 0;

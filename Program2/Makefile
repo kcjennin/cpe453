@@ -33,5 +33,8 @@ a.out: main.o
 
 malloc: $(TARGETS)
 
+gdb:
+	gdb -iex "set env LD_PRELOAD libmalloc.so" a.out
+
 clean:
 	rm -f *.o $(TARGETS) a.out 2> /dev/null

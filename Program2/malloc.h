@@ -4,10 +4,10 @@
 
 #define HEAP_CHUNK (2 << 16)
 
-#define malloc(x)       my_malloc((x))
-#define calloc(x, y)    my_calloc((x), (y))
-#define realloc(x, y)   my_realloc((x), (y))
-#define free(x)         my_free((x))
+// #define malloc(x)       my_malloc((x))
+// #define calloc(x, y)    my_calloc((x), (y))
+// #define realloc(x, y)   my_realloc((x), (y))
+// #define free(x)         my_free((x))
 
 #define ALIGNMENT 16
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~(ALIGNMENT-1))
@@ -19,9 +19,9 @@ typedef struct __attribute__((packed)) header
     struct header *free_next;
 } Header;
 
-void *my_malloc(size_t size);
-void *my_calloc(size_t nmemb, size_t size);
-void *my_realloc(void *ptr, size_t size);
-void my_free(void *ptr);
+void *malloc(size_t size);
+void *calloc(size_t nmemb, size_t size);
+void *realloc(void *ptr, size_t size);
+void free(void *ptr);
 
 #endif
