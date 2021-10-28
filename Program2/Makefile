@@ -27,7 +27,7 @@ libmalloc.so: malloc.o
 	gcc -shared $(CFLAGS) -o $@ $^
 
 a.out: main.c
-	gcc $^ $(LDFLAGS)
+	gcc $^ -g -Wall $(LDFLAGS)
 
 .PHONY: clean malloc
 

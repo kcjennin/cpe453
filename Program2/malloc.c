@@ -306,10 +306,10 @@ void *realloc(void *ptr, size_t size)
     head = (Header *)ptr - 1;
     next = next_header(head);
 
-    size_diff = head->size - block_size - sizeof(Header);
+    size_diff = head->size - block_size;
 
     /* we need to split the block */
-    if(size_diff > 0)
+    if(size_diff > sizeof(Header))
     {
         head->size = block_size;
 

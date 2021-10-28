@@ -4,8 +4,11 @@
 
 int main(int argc, char *argv[]) {
     char *s;
-    s = strdup("Tryme"); /* should call malloc() implicitly */
-    puts(s);
-    free(s);
+
+    s = strdup("Tryme");
+
+    s = realloc(s, strlen("Tryme") + 156);
+    realloc(s, 0);
+
     return 0;
 }
