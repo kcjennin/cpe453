@@ -183,6 +183,8 @@ void *malloc_no_print(size_t size)
         /* if we found a spot and we need to split */
         if(head && new_size > 0)
         {
+            head->size = block_size;
+
             new_head = next_header(head);
             new_head->used = 0;
             new_head->size = new_size;
@@ -199,7 +201,6 @@ void *malloc_no_print(size_t size)
                 errno = ENOMEM;
                 return NULL;
             }
-
             new_head->used = 0;
             new_head->size = HEAP_CHUNK;
             add_to_free(new_head);
@@ -209,6 +210,8 @@ void *malloc_no_print(size_t size)
     }
     head->used = 1;
     head->size = block_size;
+
+    remove_from_free(head);
 
     return &head[1];
 }
@@ -357,7 +360,7 @@ void *realloc(void *ptr, size_t size)
 
 void free_no_print(void *ptr)
 {
-    Header *next, *head, *last_free = NULL;
+    Header *next, *head;
 
     if(!ptr)
         return;
@@ -373,29 +376,13 @@ void free_no_print(void *ptr)
     {
         next = next_header(head);
 
-        if(!head->used)
-            last_free = head;
-        else
+        /* found it */
+        if(ptr >= (void *)head && ptr < (void *)next)
         {
-            /* found it */
-            if(ptr >= (void *)head && ptr < (void *)next)
-            {
-                head->used = 0;
-
-                /* insert into free list */
-                /* if this is the first occuring free */
-                if(!last_free)
-                {
-                    head->free_next = free_blocks;
-                    free_blocks = head;
-                }
-                /* not the first */
-                else
-                {
-                    head->free_next = last_free->free_next;
-                    last_free->free_next = head;
-                }
-            }
+            head->used = 0;
+            /* insert into free list */
+            add_to_free(head);
+            break;
         }
         head = next;
     }
@@ -403,6 +390,7 @@ void free_no_print(void *ptr)
     /* combine with next free block if possible */
     if(head != get_heap_end() && !next->used)
     {
+        next = next_header(head);
         head->free_next = next->free_next;
         head->size += next->size + sizeof(Header);
     }
