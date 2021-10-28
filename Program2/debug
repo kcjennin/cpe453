@@ -1,0 +1,2 @@
+DEBUG_MALLOC=
+export DEBUG_MALLOC

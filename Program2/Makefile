@@ -1,6 +1,6 @@
 CC = gcc
 
-CFLAGS = -g -I. -fPIC -Wall #-Werror
+CFLAGS = -g -fPIC -Wall #-Werror
 LDFLAGS = -L. -lmalloc
 
 OBJS = malloc.o main.o
@@ -26,10 +26,10 @@ libmalloc.a: malloc.o
 libmalloc.so: malloc.o
 	gcc -shared $(CFLAGS) -o $@ $^
 
-a.out: main.o
+a.out: main.c
 	gcc $^ $(LDFLAGS)
 
-.PHONY: clean malloc library_set
+.PHONY: clean malloc
 
 malloc: $(TARGETS)
 

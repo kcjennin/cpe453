@@ -2,9 +2,20 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include "malloc.h"
+#include <stddef.h>
+#include <stdlib.h>
 
+#define HEAP_CHUNK (2 << 16)
+#define ALIGNMENT 16
+#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~(ALIGNMENT-1))
 #define STR_SIZE 128
+
+typedef struct __attribute__((packed)) header
+{
+    size_t size : 8*sizeof(size_t) - 1;
+    unsigned char used : 1;
+    struct header *free_next;
+} Header;
 
 enum print_flags { MALLOC, CALLOC, REALLOC, FREE } flags;
 
@@ -21,25 +32,29 @@ Header *get_heap_end();
 
 static Header *free_blocks = NULL;
 static Header *heap = NULL;
+static int debug = 0;
 
-void print_stat(int s, void *ptr, size_t size1, size_t size2)
+void print_stat(int s, void *ptr, size_t size0, size_t size1, size_t size2)
 {
     char str[STR_SIZE];
-    memset(str, 0, STR_SIZE);
 
+    if(!debug)
+        return;
+
+    memset(str, 0, STR_SIZE);
     switch(s)
     {
         case MALLOC :
-            snprintf(str, STR_SIZE, "MALLOC: malloc(%ld)\t=>\t(ptr=%p, size=%ld)\n",
-                size1, ptr, size1);
+            snprintf(str, STR_SIZE, "MALLOC: malloc(%ld) => (ptr=%p, size=%ld)\n",
+                size0, ptr, size1);
             break;
         case CALLOC :
-            snprintf(str, STR_SIZE, "MALLOC: calloc(%ld,%ld)\t=>\t(ptr=%p, size=%ld)\n",
-                size1, size2, ptr, size1*size2);
+            snprintf(str, STR_SIZE, "MALLOC: calloc(%ld,%ld) => (ptr=%p, size=%ld)\n",
+                size0, size1, ptr, size2);
             break;
         case REALLOC :
-            snprintf(str, STR_SIZE, "MALLOC: realloc(%p,%ld)\t=>\t(ptr=%p, size=%ld)\n",
-                ptr, size1, ptr, size1);
+            snprintf(str, STR_SIZE, "MALLOC: realloc(%p,%ld) => (ptr=%p, size=%ld)\n",
+                ptr, size0, ptr, size1);
             break;
         case FREE :
             snprintf(str, STR_SIZE, "MALLOC: free(%p)\n", ptr);
@@ -54,6 +69,8 @@ Header *get_heap_start()
 {
     if(!heap)
     {
+        debug = !(getenv("DEBUG_MALLOC") == NULL);
+
         if( !(heap = sbrk(2*sizeof(Header) + HEAP_CHUNK)))
             return NULL;
         heap->size = 0;
@@ -241,7 +258,7 @@ void *malloc(size_t size)
 
     remove_from_free(head);
 
-    print_stat(MALLOC, &head[1], size, 0);
+    print_stat(MALLOC, &head[1], size, block_size, 0);
     return &head[1];
 }
 
@@ -254,7 +271,7 @@ void *calloc(size_t nmemb, size_t size)
     ptr = malloc_no_print(total);
     memset(ptr, 0, total);
 
-    print_stat(CALLOC, ptr, nmemb, size);
+    print_stat(CALLOC, ptr, nmemb, size, ALIGN(size));
     return ptr;
 }
 
@@ -267,19 +284,19 @@ void *realloc(void *ptr, size_t size)
 
     if(!ptr && !size)
     {
-        print_stat(REALLOC, NULL, 0, 0);
+        print_stat(REALLOC, NULL, 0, 0, 0);
         return NULL;
     }
     else if(!ptr && size)
     {
         ret_ptr = malloc_no_print(size);
-        print_stat(REALLOC, ret_ptr, size, 0);
+        print_stat(REALLOC, ret_ptr, size, ALIGN(size), 0);
         return ret_ptr;
     }
     else if(ptr && !size)
     {
         free_no_print(ptr);
-        print_stat(REALLOC, ptr, 0, 0);
+        print_stat(REALLOC, ptr, 0, 0, 0);
         return NULL;
     }
 
@@ -301,13 +318,13 @@ void *realloc(void *ptr, size_t size)
         new_block->used = 0;
         add_to_free(new_block);
 
-        print_stat(REALLOC, ptr, size, 0);
+        print_stat(REALLOC, ptr, size, ALIGN(size), 0);
         return ptr;
     }
     /* same size, dont do anything */
     else if(size_diff == 0)
     {
-        print_stat(REALLOC, ptr, size, 0);
+        print_stat(REALLOC, ptr, size, ALIGN(size), 0);
         return ptr;
     }
     /* we need a bigger block */
@@ -333,7 +350,7 @@ void *realloc(void *ptr, size_t size)
             head->used = 0;
             add_to_free(head);
         }
-        print_stat(REALLOC, ret_ptr, size, 0);
+        print_stat(REALLOC, ret_ptr, size, ALIGN(size), 0);
         return ret_ptr;
     }
 }
@@ -398,7 +415,7 @@ void free(void *ptr)
     if(!ptr)
         return;
 
-    print_stat(FREE, ptr, 0, 0);
+    print_stat(FREE, ptr, 0, 0, 0);
     if( !(head = get_heap_start()) )
     {
         errno = ENOMEM;
