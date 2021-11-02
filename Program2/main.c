@@ -3,12 +3,13 @@
 #include<stdio.h>
 
 int main(int argc, char *argv[]) {
-    char *s;
+    char *s, *s2;
 
-    s = strdup("Tryme");
+    s = (char *)malloc(sizeof(char) * (2 << 15));
+    s2 = (char *)malloc(sizeof(char) * (2 << 15));
 
-    s = realloc(s, strlen("Tryme") + 156);
-    realloc(s, 0);
+    free(s);
+    free(s2);
 
     return 0;
 }

@@ -107,7 +107,7 @@ void add_to_free(Header *head)
     else
     {
         dummy.free_next = free_blocks;
-        for(prev = &dummy; prev->free_next < head; prev = prev->free_next);
+        for(prev = &dummy; prev->free_next <= head && prev->free_next != get_heap_end(); prev = prev->free_next);
         head->free_next = prev->free_next;
         prev->free_next = head;
     }
@@ -222,40 +222,34 @@ void *malloc(size_t size)
     Header *head, *new_head;
 
     block_size = ALIGN(size);
-    head = find_open(block_size);
-
-    while(1)
+    while (!(head = find_open(block_size)))
     {
-        new_size = head->size - block_size - sizeof(Header);
-
-        /* if we found a spot and we need to split */
-        if(head && new_size > 0)
+        if(errno == ENOMEM)
+            return NULL;
+        /* didn't find a spot */
+        if( (new_head = sbrk(HEAP_CHUNK + sizeof(Header))) < 0 )
         {
-            head->size = block_size;
-
-            new_head = next_header(head);
-            new_head->used = 0;
-            new_head->size = new_size;
-            add_to_free(new_head);
-            break;
+            errno = ENOMEM;
+            return NULL;
         }
-        else if (!head)
-        {
-            if(errno == ENOMEM)
-                return NULL;
-            /* didn't find a spot */
-            if( (new_head = sbrk(HEAP_CHUNK + sizeof(Header))) < 0 )
-            {
-                errno = ENOMEM;
-                return NULL;
-            }
-            new_head->used = 0;
-            new_head->size = HEAP_CHUNK;
-            add_to_free(new_head);
-            
-            head = find_open(block_size);
-        }
+        new_head->used = 0;
+        new_head->size = HEAP_CHUNK;
+        new_head->free_next = next_header(new_head);
     }
+
+    new_size = head->size - block_size - sizeof(Header);
+
+    /* if we found a spot and we need to split */
+    if(head && new_size > 0)
+    {
+        head->size = block_size;
+
+        new_head = next_header(head);
+        new_head->used = 0;
+        new_head->size = new_size;
+        add_to_free(new_head);
+    }
+
     head->used = 1;
     head->size = block_size;
 
@@ -432,5 +426,15 @@ void free(void *ptr)
         next = next_header(head);
         head->free_next = next->free_next;
         head->size += next->size + sizeof(Header);
+    }
+
+    /* shrink the heap if possible */
+    if(next_header(head) == get_heap_end() && !head->used && head->size >= HEAP_CHUNK)
+    {
+        if(sbrk(-(head->size + sizeof(Header))) < 0)
+        {
+            errno = ENOMEM;
+            return;
+        }
     }
 }
