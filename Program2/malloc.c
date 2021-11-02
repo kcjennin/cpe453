@@ -392,7 +392,7 @@ void free_no_print(void *ptr)
 
 void free(void *ptr)
 {
-    Header *next, *head;
+    Header *next, *head, *prev;
 
     if(!ptr)
         return;
@@ -417,24 +417,38 @@ void free(void *ptr)
             add_to_free(head);
             break;
         }
+        prev = head;
         head = next;
     }
 
-    /* combine with next free block if possible */
-    if(head != get_heap_end() && !next->used)
+    /* we found it */
+    if(head != get_heap_end())
     {
-        next = next_header(head);
-        head->free_next = next->free_next;
-        head->size += next->size + sizeof(Header);
-    }
-
-    /* shrink the heap if possible */
-    if(next_header(head) == get_heap_end() && !head->used && head->size >= HEAP_CHUNK)
-    {
-        if(sbrk(-(head->size + sizeof(Header))) < 0)
+        /* combine with next free block if possible */
+        if(next_header(head) == head->free_next && next_header(head) != get_heap_end())
         {
-            errno = ENOMEM;
-            return;
+            next = next_header(head);
+            remove_from_free(next);
+            head->size += next->size + sizeof(Header);
+        }
+
+        /* combine with previous free block if possible */
+        if(prev && !prev->used)
+        {
+            remove_from_free(head);
+            prev->size += head->size + sizeof(Header);
+        }
+
+        /* shrink the heap if possible */
+        if(next_header(head) == get_heap_end() && !head->used && head->size >= HEAP_CHUNK)
+        {
+            if(sbrk(-(head->size + sizeof(Header))) < 0)
+            {
+                errno = ENOMEM;
+                return;
+            }
+            head->size = 0;
+            head->free_next = 0;
         }
     }
 }

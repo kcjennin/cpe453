@@ -3,19 +3,18 @@
 #include<stdio.h>
 
 int main(int argc, char *argv[]) {
-    char *s, *s2, *s3;
+    char *s[1000000];
+    int i;
 
-    s = (char *)malloc(sizeof(char) * (2 << 15));
-    s2 = (char *)malloc(sizeof(char) * (2 << 15));
+    for(i = 0; i < 1000000; i++)
+    {
+        s[i] = malloc(1024);
+    }
 
-    free(s);
-    free(s2);
-
-    s3 = (char *)malloc(sizeof(char) * (2 << 17));
-
-    s3[(2 << 17) - 1] = 0;
-
-    free(s3);
+    for(i = 0; i < 1000000; i++)
+    {
+        free(s[i]);
+    }
 
     return 0;
 }
