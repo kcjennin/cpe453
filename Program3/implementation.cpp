@@ -65,10 +65,10 @@ static int mygetattr(void *args, uint32_t block_num, struct stat *stbuf)
     stbuf->st_blocks = in.blocks;
     stbuf->st_atim.tv_sec = in.atim;
     stbuf->st_atim.tv_nsec = in.atimn;
-    stbuf->st_atim.tv_sec = in.mtim;
-    stbuf->st_atim.tv_nsec = in.mtimn;
-    stbuf->st_atim.tv_sec = in.ctim;
-    stbuf->st_atim.tv_nsec = in.ctimn;
+    stbuf->st_mtim.tv_sec = in.mtim;
+    stbuf->st_mtim.tv_nsec = in.mtimn;
+    stbuf->st_ctim.tv_sec = in.ctim;
+    stbuf->st_ctim.tv_nsec = in.ctimn;
     return 0;
 }
 

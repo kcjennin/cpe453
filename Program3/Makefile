@@ -23,7 +23,7 @@ clean:
 	rm -f *.o cpe453fs hello_cpe453fs
 
 unmount:
-	fusermount -u /tmp/kcjennin/mnt
+	fusermount -u /tmp/${USER}/mnt
 
 unmount_ref:
-	fusermount -u /tmp/kcjennin/mnt_ref
+	fusermount -u /tmp/${USER}/mnt_ref
