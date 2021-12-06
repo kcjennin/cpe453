@@ -48,7 +48,7 @@ void writeblock(int fd, unsigned char *p, uint32_t bnum)
 	{
 		perror("Error writing to file");
       printf("   Block %u offset %u\n", bnum, 4096*bnum);
-		exit(0);
+		exit(1);
 	}
 }
 
@@ -260,13 +260,13 @@ static int cpe453fs_statfs(const char *path, struct statvfs *stat)
 	if (0 > fstatvfs(fd, &disk))
 	{
 		perror("Error calling fstatvfs");
-		exit(0);
+		exit(2);
 	}
 
 	if (0 > fstat(fd, &sb))
 	{
 		perror("Error calling fstat");
-		exit(0);
+		exit(3);
 	}
 	// sz = sb.st_size / 4096;
 
@@ -618,7 +618,7 @@ int main(int argc, char *argv[])
 	if (argc < 2)
 	{
 		fprintf(stderr, "Usage: %s [fuse options] <FS File>\n", argv[0]);
-		exit(1);
+		exit(4);
 	}
 
 	fd = open(argv[argc-1], O_RDWR
@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
 	if (fd < 0)
 	{
 		perror("Error opening filesystem file");
-		exit(1);
+		exit(5);
 	}
 
    printf("Using fd %d\n", fd);
