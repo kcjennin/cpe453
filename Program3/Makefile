@@ -7,27 +7,23 @@ else
 	FUSE_LINK=-lfuse -lpthread
 endif
 
-CFLAGS=-Wall -Werror -DDEBUG -g -D_FILE_OFFSET_BITS=64 $(OS_DEF)
+CFLAGS=-Wall -Werror -g -D_FILE_OFFSET_BITS=64 $(OS_DEF)
 CXXFLAGS=$(CFLAGS)
 
-all: hello_cpe453fs cpe453fs
+all: cpe453fs
 
 cpe453fs: cpe453fs_main.o implementation.o smartalloc.o
 	$(CXX) $(CXXFLAGS) cpe453fs_main.o implementation.o -o $@ $(FUSE_LINK)
 
-hello_cpe453fs: cpe453fs_main.o hello_fs.o
-	$(CXX) $(CXXFLAGS) cpe453fs_main.o hello_fs.o -o $@ $(FUSE_LINK)
-
 cpe453fs_main.o: cpe453fs_main.c cpe453fs.h
-hello_fs.o: hello_fs.cpp cpe453fs.h
 implementation.o: implementation.cpp cpe453fs.h implementation.h
 smartalloc.o: smartalloc.c smartalloc.h
 
 clean:
-	rm -f cpe453fs_main.o implementation.o hello_fs.o cpe453fs hello_cpe453fs
+	rm -f *.o cpe453fs hello_cpe453fs
 
 unmount:
-	fusermount -u /tmp/kyle/mnt
+	fusermount -u /tmp/kcjennin/mnt
 
 unmount_ref:
-	fusermount -u /tmp/kyle/mnt_ref
+	fusermount -u /tmp/kcjennin/mnt_ref
