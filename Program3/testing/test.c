@@ -21,12 +21,10 @@ int main()
 
     fd = open("/tmp/kyle/mnt/t1.txt", O_RDONLY);
     fd2 = open("/tmp/kyle/mnt_ref/t1.txt", O_RDONLY);
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 1000000; i++)
     {
         read_size = rand() % FILESIZE;
         offset = rand() % FILESIZE;
-
-        printf("read_size: %d --- offset %d\n", read_size, offset);
 
         if(lseek(fd, offset, SEEK_SET) < 0)
         {
@@ -35,7 +33,6 @@ int main()
         }
         err = read(fd, buf, read_size);
         assert(err <= FILESIZE - offset);
-        printf("me: %d --- ", err);
 
         if(lseek(fd2, offset, SEEK_SET) < 0)
         {
@@ -44,7 +41,6 @@ int main()
         }
         err2 = read(fd2, buf2, read_size);
         assert(err2 <= FILESIZE - offset);
-        printf("ref: %d\n", err2);
 
         assert(err == err2);
         assert(memcmp(buf, buf2, err) == 0);
