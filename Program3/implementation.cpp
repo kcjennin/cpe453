@@ -195,6 +195,9 @@ static int myread(void *args, uint32_t block_num, char *buf, size_t size, off_t 
     if (block.inode.type != INODETYPE)
         return -1;
 
+    if ((long unsigned int)offset >= block.inode.size)
+        return 0;
+
     // correct for too much reading
     if (size + offset > block.inode.size)
         size -= (size + offset) - block.inode.size;
@@ -231,6 +234,9 @@ static int myread(void *args, uint32_t block_num, char *buf, size_t size, off_t 
         }
         else
             offset -= size_of_block;
+
+        if (offset < 0)
+            return 0;
 
         if (block.inode.type == INODETYPE)
             size_of_block = 4084;
