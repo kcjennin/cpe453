@@ -108,7 +108,10 @@ static int myreaddir(void *args, uint32_t block_num, void *buf, CPE453_readdir_c
     for (;;)
     {
         // get the first entry
-        de = (DirEntry) &block.inode.contents;
+        if (block.inode.type == INODETYPE)
+            de = (DirEntry) &block.inode.contents;
+        else
+            de = (DirEntry) &block.extent.contents;
 
         // return if there are no entries
         if (!de->len)
@@ -170,52 +173,6 @@ static int myopen(void *args, uint32_t block_num)
 
     return 0;
 }
-
-/*
-static int myread_helper(void *args, uint32_t block_num, char *buf, size_t size, off_t offset)
-{
-    int err;
-    size_t local_size;
-    file_extents_s in;
-    struct Args *fs = (struct Args*)args;
-
-    if(lseek(fs->fd, block_num * BLOCKSIZE, SEEK_SET) < 0)
-        return -errno;
-
-    err = read(fs->fd, &in, BLOCKSIZE);
-    if (err != BLOCKSIZE)
-        return -errno;
-    if (in.type != FILEEXTENTSTYPE)
-        return -1;
-
-    // we start in this block
-    if (offset < 4084)
-    {
-        local_size = 4084 - offset;
-
-        // we continue
-        if (size > local_size)
-        {
-            memcpy(buf, &in.contents[offset], local_size);
-            err = myread_helper(args, in.next, &buf[local_size], size - local_size, 0);
-            if (err < 0)
-                return err;
-        }
-        // we end here
-        else
-            memcpy(buf, &in.contents[offset], size);
-    }
-    // we dont start in this block
-    else
-    {
-        err = myread_helper(args, in.next, buf, size, offset - 4084);
-        if (err < 0)
-            return err;
-    }
-
-    return size;
-}
-*/
 
 static int myread(void *args, uint32_t block_num, char *buf, size_t size, off_t offset)
 {
