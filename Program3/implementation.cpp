@@ -85,7 +85,7 @@ static int myreaddir(void *args, uint32_t block_num, void *buf, CPE453_readdir_c
 {
     int err;
     size_t amount_read=0;
-    char name_buf[256];
+    char name_buf[4088];
     union {
         inode_s inode;
         dir_extents_s extent;
@@ -144,6 +144,8 @@ static int myreaddir(void *args, uint32_t block_num, void *buf, CPE453_readdir_c
             return -errno;
         if (block.inode.type != DIREXTENTSTYPE)
             return -EBADF;
+
+        amount_read = 0;
     }
 
     return 0;
@@ -300,8 +302,8 @@ size_t DirEntry_name(DirEntry e, char *buf)
     if (!e->len)
         return 0;
 
-    memset(buf, 0, 256);
     memcpy(buf, name, e->len - sizeof(dir_entry_s));
+    buf[e->len - sizeof(dir_entry_s)] = 0;
 
     return e->len;
 }
