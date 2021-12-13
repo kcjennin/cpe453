@@ -113,22 +113,22 @@ static int myreaddir(void *args, uint32_t block_num, void *buf, CPE453_readdir_c
         else
             de = (DirEntry) &block.extent.contents;
 
-        // return if there are no entries
-        if (!de->len)
-            return 0;
-
-        // copy the name into a NULL-terminated buffer
-        amount_read += DirEntry_name(de, name_buf);
-
-        // call the function
-        cb(buf, name_buf, de->inode);
-
-        // do the same for the rest of the entries
-        while((de = DirEntry_next(de)) && amount_read != block.inode.size)
+        // deal with entries if they exist
+        if (de->len)
         {
+            // copy the name into a NULL-terminated buffer
             amount_read += DirEntry_name(de, name_buf);
 
+            // call the function
             cb(buf, name_buf, de->inode);
+
+            // do the same for the rest of the entries
+            while((de = DirEntry_next(de)) && amount_read != block.inode.size)
+            {
+                amount_read += DirEntry_name(de, name_buf);
+
+                cb(buf, name_buf, de->inode);
+            }
         }
 
         // exit if done
@@ -147,7 +147,6 @@ static int myreaddir(void *args, uint32_t block_num, void *buf, CPE453_readdir_c
 
         amount_read = 0;
     }
-
     return 0;
 }
 
