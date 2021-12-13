@@ -52,7 +52,6 @@ static int mygetattr(void *args, uint32_t block_num, struct stat *stbuf)
     if (in.type != INODETYPE)
         return -EBADF;
 
-    // NOTE: make this work
     // stbuf->st_dev = ;
     stbuf->st_ino = block_num;
     stbuf->st_mode = in.mode;
@@ -72,60 +71,6 @@ static int mygetattr(void *args, uint32_t block_num, struct stat *stbuf)
     return 0;
 }
 
-/**
- * @brief performs the readdir operations on directory extents
- * 
- * @param args Args struct
- * @param block_num of the extent
- * @param buf for cb
- * @param cb function to call on all the entries
- * @return int 0 on success, negative otherwise
- */
-static int readdir_helper(void *args, uint32_t block_num, void *buf, CPE453_readdir_callback_t cb, size_t remaining)
-{
-    int err;
-    size_t amount_read=0;
-    char name_buf[256];
-    dir_extents_s in;
-    DirEntry de;
-    struct Args *fs = (struct Args*)args;
-
-    if(lseek(fs->fd, block_num * BLOCKSIZE, SEEK_SET) < 0)
-        return -errno;
-
-    err = read(fs->fd, &in, BLOCKSIZE);
-    if (err != BLOCKSIZE)
-        return -errno;
-    if (in.type != DIREXTENTSTYPE)
-        return -ENOENT;
-
-    // get the first entry
-    de = (DirEntry) &in.contents;
-
-    // return if there are no entries
-    if (!de->len)
-        return 0;
-
-    // copy the name into a NULL-terminated buffer
-    amount_read += DirEntry_name(de, name_buf);
-
-    // call the function
-    cb(buf, name_buf, de->inode);
-
-    // do the same for the rest of the entries
-    while((de = DirEntry_next(de)) && amount_read != remaining)
-    {
-        amount_read += DirEntry_name(de, name_buf);
-
-        cb(buf, name_buf, de->inode);
-    }
-
-    // continue if we have extents
-    if (in.next)
-        return readdir_helper(args, in.next, buf, cb, remaining - amount_read);
-
-    return 0;
-}
 
 /**
  * @brief calls the function cb on all the entries in the directory
@@ -141,45 +86,62 @@ static int myreaddir(void *args, uint32_t block_num, void *buf, CPE453_readdir_c
     int err;
     size_t amount_read=0;
     char name_buf[256];
-    inode_s in;
+    union {
+        inode_s inode;
+        dir_extents_s extent;
+    } block;
     DirEntry de;
+    
     struct Args *fs = (struct Args*)args;
 
     if(lseek(fs->fd, block_num * BLOCKSIZE, SEEK_SET) < 0)
         return -errno;
 
-    err = read(fs->fd, &in, BLOCKSIZE);
+    err = read(fs->fd, &block.inode, BLOCKSIZE);
     if (err != BLOCKSIZE)
         return -errno;
-    if (in.type != INODETYPE)
+    if (block.inode.type != INODETYPE)
         return -EBADF;
-    if (!(in.mode & S_IFDIR))
+    if (!(block.inode.mode & S_IFDIR))
         return -ENOTDIR;
 
-    // get the first entry
-    de = (DirEntry) &in.contents;
-
-    // return if there are no entries
-    if (!de->len)
-        return 0;
-
-    // copy the name into a NULL-terminated buffer
-    amount_read += DirEntry_name(de, name_buf);
-
-    // call the function
-    cb(buf, name_buf, de->inode);
-
-    // do the same for the rest of the entries
-    while((de = DirEntry_next(de)) && amount_read != in.size)
+    for (;;)
     {
+        // get the first entry
+        de = (DirEntry) &block.inode.contents;
+
+        // return if there are no entries
+        if (!de->len)
+            return 0;
+
+        // copy the name into a NULL-terminated buffer
         amount_read += DirEntry_name(de, name_buf);
 
+        // call the function
         cb(buf, name_buf, de->inode);
-    }
 
-    // continue if we have extents
-    if (in.next)
-        return readdir_helper(args, in.next, buf, cb, in.size - amount_read);
+        // do the same for the rest of the entries
+        while((de = DirEntry_next(de)) && amount_read != block.inode.size)
+        {
+            amount_read += DirEntry_name(de, name_buf);
+
+            cb(buf, name_buf, de->inode);
+        }
+
+        // exit if done
+        if (!block.inode.next)
+            return 0;
+
+        block_num = block.inode.next;
+        if(lseek(fs->fd, block_num * BLOCKSIZE, SEEK_SET) < 0)
+            return -errno;
+
+        err = read(fs->fd, &block.extent, BLOCKSIZE);
+        if (err != BLOCKSIZE)
+            return -errno;
+        if (block.inode.type != DIREXTENTSTYPE)
+            return -EBADF;
+    }
 
     return 0;
 }
@@ -209,6 +171,7 @@ static int myopen(void *args, uint32_t block_num)
     return 0;
 }
 
+/*
 static int myread_helper(void *args, uint32_t block_num, char *buf, size_t size, off_t offset)
 {
     int err;
@@ -252,54 +215,79 @@ static int myread_helper(void *args, uint32_t block_num, char *buf, size_t size,
 
     return size;
 }
+*/
 
 static int myread(void *args, uint32_t block_num, char *buf, size_t size, off_t offset)
 {
-    int err;
-    size_t local_size;
-    inode_s in;
+    int err, size_of_block=4028;
+    size_t local_size, size_temp, i_buf=0;
+    union {
+        inode_s inode;
+        file_extents_s extent;
+    } block;
     struct Args *fs = (struct Args*)args;
 
+    // load the inode
     if(lseek(fs->fd, block_num * BLOCKSIZE, SEEK_SET) < 0)
         return -errno;
 
-    err = read(fs->fd, &in, BLOCKSIZE);
+    err = read(fs->fd, &block, BLOCKSIZE);
     if (err != BLOCKSIZE)
         return -errno;
-    if (in.type != INODETYPE)
+    if (block.inode.type != INODETYPE)
         return -1;
 
     // correct for too much reading
-    if (size + offset > in.size)
-        size -= (size + offset) - in.size;
+    if (size + offset > block.inode.size)
+        size -= (size + offset) - block.inode.size;
 
-    // we start in this block
-    if (offset < 4028)
+    size_temp = size;
+
+    for (;;)
     {
-
-        local_size = 4028 - offset;
-
-        // we continue
-        if (size > local_size)
+        // check if we are in the right block
+        if (offset < size_of_block)
         {
-            memcpy(buf, &in.contents[offset], local_size);
-            err = myread_helper(args, in.next, &buf[local_size], size - local_size, 0);
-            if (err < 0)
-                return err;
-        }
-        // we end here
-        else
-            memcpy(buf, &in.contents[offset], size);
-    }
-    // we dont start in this block
-    else
-    {
-        err = myread_helper(args, in.next, buf, size, offset - 4028);
-        if (err < 0)
-            return err;
-    }
+            local_size = size_of_block - offset;
 
-    return size;
+            // if overflows
+            if (size_temp > local_size)
+            {
+                // set the offset and size for the next block
+                if (block.inode.type == INODETYPE)
+                    memcpy(&buf[i_buf], &block.inode.contents[offset], local_size);
+                else
+                    memcpy(&buf[i_buf], &block.extent.contents[offset], local_size);
+                i_buf += local_size;
+                offset = 0;
+                size_temp -= local_size;
+            }
+            else
+            {
+                if (block.inode.type == INODETYPE)
+                    memcpy(&buf[i_buf], &block.inode.contents[offset], size_temp);
+                else
+                    memcpy(&buf[i_buf], &block.extent.contents[offset], size_temp);
+                return size;
+            }
+        }
+        else
+            offset -= size_of_block;
+
+        if (block.inode.type == INODETYPE)
+            size_of_block = 4084;
+
+        // get the next block
+        block_num = block.inode.next;
+        if(lseek(fs->fd, block_num * BLOCKSIZE, SEEK_SET) < 0)
+            return -errno;
+
+        err = read(fs->fd, &block, BLOCKSIZE);
+        if (err != BLOCKSIZE)
+            return -errno;
+        if (block.inode.type != FILEEXTENTSTYPE)
+            return -1;
+    }
 }
 
 static int myreadlink(void *args, uint32_t block_num, char *buf, size_t size)

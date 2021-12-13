@@ -19,8 +19,8 @@ int main()
 
     srand((unsigned) time(&t));
 
-    fd = open("/tmp/kyle/mnt/t1.txt", O_RDONLY);
-    fd2 = open("/tmp/kyle/mnt_ref/t1.txt", O_RDONLY);
+    fd = open("/tmp/kcjennin/mnt/t1.txt", O_RDONLY);
+    fd2 = open("/tmp/kcjennin/mnt_ref/t1.txt", O_RDONLY);
     for (i = 0; i < 1000000; i++)
     {
         read_size = rand() % FILESIZE;
