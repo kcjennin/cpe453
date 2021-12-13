@@ -7,7 +7,7 @@ else
 	FUSE_LINK=-lfuse -lpthread
 endif
 
-CFLAGS=-Wall -Werror -ggdb -D_FILE_OFFSET_BITS=64 $(OS_DEF)
+CFLAGS=-Wall -Werror -D_FILE_OFFSET_BITS=64 $(OS_DEF)
 CXXFLAGS=$(CFLAGS)
 
 all: cpe453fs
